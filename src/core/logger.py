@@ -50,8 +50,14 @@ class SlackBotFormatter(logging.Formatter):
         user_info = f"{self.cyan}[{record.__dict__.get('user', 'SYSTEM')}] {self.reset}"
         cmd_info = f"{self.magenta}{record.__dict__.get('cmd', '')} {self.reset}" if record.__dict__.get('cmd') else ""
         
-        # Ana mesaj formatı
-        formatted_msg = f"{self.white}{timestamp}{self.reset} | {level_color}{icon}{level_name:<8}{self.reset} | {user_info}{cmd_info}{record.getMessage()}"
+        # Ana mesaj formatı - daha açık ve detaylı
+        message = record.getMessage()
+        # Eğer mesajda "|" varsa, daha okunabilir hale getir
+        if "|" in message:
+            parts = message.split("|")
+            message = " | ".join([p.strip() for p in parts])
+        
+        formatted_msg = f"{self.white}{timestamp}{self.reset} | {level_color}{icon}{level_name:<8}{self.reset} | {user_info}{cmd_info}{message}"
         
         # Exception varsa ekle
         if record.exc_info:
