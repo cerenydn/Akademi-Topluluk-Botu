@@ -416,6 +416,45 @@ if __name__ == "__main__":
     # 1. Veritabanı İlklendirme
     logger.info("[>] Veritabanı kontrol ediliyor...")
     db_client.init_db()
+
+    # --- CSV Veri İçe Aktarma Kontrolü ---
+    import sys
+    
+    # Klasörlerin varlığını kontrol et
+    os.makedirs("data", exist_ok=True)
+    os.makedirs("knowledge_base", exist_ok=True)
+    os.makedirs("logs", exist_ok=True)
+    
+    CSV_PATH = "data/initial_users.csv"
+    
+    if not os.path.exists(CSV_PATH):
+        # Şablon dosya oluştur
+        print(f"\n[i] '{CSV_PATH}' dosyası bulunamadı. Şablon oluşturuluyor...")
+        try:
+            with open(CSV_PATH, 'w', encoding='utf-8') as f:
+                f.write("slack_id,first_name,surname,birthday,department\n")
+                f.write("U12345,Ahmet,Yilmaz,1990-01-01,Yazilim\n")
+            print(f"[+] Şablon oluşturuldu: {CSV_PATH}")
+            print(f"[i] Kullanıcıları içeri aktarmak için bu dosyayı doldurup botu yeniden başlatabilirsiniz.")
+            input("Devam etmek için ENTER'a basın...")
+        except Exception as e:
+            logger.error(f"Şablon oluşturma hatası: {e}")
+    else:
+        # Dosya var, import onayı iste
+        print(f"\n[?] '{CSV_PATH}' dosyası bulundu.")
+        choice = input("Bu dosyadaki verilerle 'users' tablosunu SIFIRLAYIP yeniden oluşturmak ister misiniz? (e/h): ").lower().strip()
+        
+        if choice == 'e':
+            print("[i] Veriler işleniyor...")
+            try:
+                count = user_repo.import_from_csv(CSV_PATH)
+                print(f"[+] Başarılı! {count} kullanıcı eklendi.")
+            except Exception as e:
+                logger.error(f"[X] Import hatası: {e}")
+                print("Hata oluştu, logları kontrol edin.")
+        else:
+            print("[i] İşlem atlandı, mevcut veritabanı ile devam ediliyor.")
+    # -------------------------------------
     
     # 2. Cron Başlatma
     logger.info("[>] Zamanlayıcı başlatılıyor...")
