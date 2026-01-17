@@ -208,6 +208,9 @@ __marimo__/
 
 
 # Cemil Bot - Yerel Veriler
-data/
-knowledge_base/
-logs/
+data/*
+!data/.gitkeep
+knowledge_base/*
+!knowledge_base/.gitkeep
+logs/*
+!logs/.gitkeep
