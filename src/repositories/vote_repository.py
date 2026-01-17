@@ -13,12 +13,19 @@ class VoteRepository(BaseRepository):
         """
         Kullanıcının belirli bir oylamada (veya belirli bir seçenekte) oy verip vermediğini kontrol eder.
         """
-        query = "SELECT COUNT(*) as count FROM votes WHERE poll_id = ? AND user_id = ?"
+        query = f"SELECT COUNT(*) as count FROM {self.table_name} WHERE poll_id = ? AND user_id = ?"
         params = [poll_id, user_id]
         
         if option_index is not None:
             query += " AND option_index = ?"
             params.append(option_index)
             
-        result = self.db.execute_query(query, params)
-        return result[0]["count"] > 0 if result else False
+        try:
+            with self.db_client.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                row = cursor.fetchone()
+                return row["count"] > 0 if row else False
+        except Exception as e:
+            logger.error(f"[X] VoteRepository.has_user_voted hatası: {e}")
+            raise DatabaseError(str(e))

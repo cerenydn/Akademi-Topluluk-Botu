@@ -1,4 +1,6 @@
 import os
+import pandas as pd
+from docx import Document
 from typing import List, Dict, Any
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
@@ -34,13 +36,35 @@ class KnowledgeService:
             text = ""
             
             try:
+                # PDF İşleme
                 if filename.endswith(".pdf"):
                     reader = PdfReader(file_path)
                     for page in reader.pages:
                         text += page.extract_text() + "\n"
-                elif filename.endswith(".txt"):
+                
+                # TXT ve Markdown İşleme
+                elif filename.endswith((".txt", ".md")):
                     with open(file_path, "r", encoding="utf-8") as f:
                         text = f.read()
+
+                # DOCX (Word) İşleme
+                elif filename.endswith(".docx"):
+                    doc = Document(file_path)
+                    text = "\n".join([para.text for para in doc.paragraphs])
+
+                # Excel ve CSV İşleme (Tablosal)
+                elif filename.endswith((".csv", ".xlsx", ".xls")):
+                    if filename.endswith(".csv"):
+                        df = pd.read_csv(file_path)
+                    else:
+                        df = pd.read_excel(file_path)
+                    
+                    # Her satırı bir metin parçasına dönüştür
+                    rows_text = []
+                    for idx, row in df.iterrows():
+                        row_str = ", ".join([f"{col}: {row[col]}" for col in df.columns])
+                        rows_text.append(row_str)
+                    text = "\n".join(rows_text)
                 
                 if text.strip():
                     chunks = self.splitter.split_text(text)
@@ -58,11 +82,12 @@ class KnowledgeService:
     async def ask_question(self, question: str) -> str:
         """Kullanıcının sorusunu dökümanlara göre yanıtlar."""
         try:
-            # 1. Benzer metin parçalarını bul
-            context_docs = self.vector.search(question, top_k=4)
+            # 1. Benzer metin parçalarını bul (threshold ile filtrele)
+            context_docs = self.model_search_context(question)
             
             if not context_docs:
-                return "Üzgünüm, bu konuda bilgi küpümde herhangi bir veri bulamadım. 😔"
+                logger.info(f"[i] Soru için dökümanlarda eşleşme bulunamadı: {question}")
+                return "Üzgünüm, bilgi küpümde bu soruyla eşleşen herhangi bir döküman veya bilgi bulunamadı. 😔"
 
             # 2. Bağlamı (Context) hazırla
             context_text = "\n\n".join([
@@ -70,11 +95,16 @@ class KnowledgeService:
                 for doc in context_docs
             ])
 
-            # 3. LLM'e (Groq) sor
+            # 3. LLM'e (Groq) sor - Sıkı Kurallar Altında
             system_prompt = (
-                "Sen Cemil'sin, topluluk asistanısın. Aşağıda sana verilen BAĞLAM (Context) bilgilerini kullanarak "
-                "kullanıcının sorusunu yanıtla. Sadece sağlanan bilgileri kullan. Eğer cevap bağlamda yoksa "
-                "kibarca bilmediğini söyle. Yanıtların samimi, öz ve ASCII karakterlerle (emojisiz) olsun."
+                "Sen Cemil'sin, sadece sana verilen dökümanlara (BAĞLAM) dayanarak cevap veren bir asistansın. "
+                "Şu kurallara KESİNLİKLE uy:\n"
+                "1. Sadece sana verilen BAĞLAM içindeki bilgileri kullan.\n"
+                "2. Bağlam dışındaki genel kültürünü veya dış bilgileri KESİNLİKLE kullanma.\n"
+                "3. Eğer cevabı bağlamda açıkça göremiyorsan, tahmin yürütme; 'Bu konuda dökümanlarımda bilgi bulamadım' de.\n"
+                "4. Cevabı uydurma, manipüle etme veya varsayımlarda bulunma.\n"
+                "5. Yanıtlarında hiçbir emoji veya ASCII olmayan karakter kullanma (sadece ASCII).\n"
+                "6. Yanıtların öz, net ve samimi olsun."
             )
             
             user_prompt = f"BAĞLAM:\n{context_text}\n\nSORU: {question}"
@@ -84,4 +114,8 @@ class KnowledgeService:
 
         except Exception as e:
             logger.error(f"[X] KnowledgeService.ask_question hatası: {e}")
-            return "Zeka katmanımda bir sorun oluştu, lütfen daha sonra tekrar dene. [X]"
+            return "Zeka katmanımda teknik bir sorun oluştu, lütfen daha sonra tekrar dene. [X]"
+
+    def model_search_context(self, question: str) -> List[Dict]:
+        """Vektör veritabanından bağlamı çeker."""
+        return self.vector.search(question, top_k=4, threshold=0.6)

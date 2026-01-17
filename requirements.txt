@@ -9,3 +9,6 @@ groq
 faiss-cpu
 sentence-transformers
 numpy
+python-docx
+pandas
+openpyxl

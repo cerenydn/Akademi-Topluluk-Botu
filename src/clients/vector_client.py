@@ -46,8 +46,11 @@ class VectorClient(metaclass=SingletonMeta):
         self.save_index()
         logger.info(f"[+] {len(texts)} yeni parça vektör indeksine eklendi.")
 
-    def search(self, query: str, top_k: int = 3) -> List[Dict]:
-        """Soruya en yakın metin parçalarını döner."""
+    def search(self, query: str, top_k: int = 3, threshold: float = 1.5) -> List[Dict]:
+        """
+        Soruya en yakın metin parçalarını döner.
+        threshold: L2 mesafesi için maksimum eşik. Bu değerden büyük (uzak) sonuçlar elenir.
+        """
         if self.index is None or not self.documents:
             return []
 
@@ -59,9 +62,14 @@ class VectorClient(metaclass=SingletonMeta):
         results = []
         for i, idx in enumerate(indices[0]):
             if idx != -1 and idx < len(self.documents):
-                doc = self.documents[idx].copy()
-                doc["score"] = float(distances[0][i])
-                results.append(doc)
+                distance = float(distances[0][i])
+                # Filtreleme: Mesafe eşikten küçükse (yani yeterince benzerse) ekle
+                if distance <= threshold:
+                    doc = self.documents[idx].copy()
+                    doc["score"] = distance
+                    results.append(doc)
+                else:
+                    logger.debug(f"[i] Sonuç mesafe eşiğine takıldı: {distance} > {threshold}")
         
         return results
 

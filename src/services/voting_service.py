@@ -157,9 +157,18 @@ class VotingService:
 
     def _calculate_results(self, poll_id: str, options: List[str]) -> List[Dict]:
         query = "SELECT option_index, COUNT(*) as count FROM votes WHERE poll_id = ? GROUP BY option_index"
-        vote_counts = self.poll_repo.db.execute_query(query, [poll_id])
         
-        counts_map = {item["option_index"]: item["count"] for item in vote_counts}
+        counts_map = {}
+        try:
+            with self.poll_repo.db_client.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, [poll_id])
+                rows = cursor.fetchall()
+                for row in rows:
+                    counts_map[row["option_index"]] = row["count"]
+        except Exception as e:
+            logger.error(f"[X] VotingService._calculate_results hatası: {e}")
+
         total_votes = sum(counts_map.values())
         
         results = []
