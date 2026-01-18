@@ -45,6 +45,9 @@ env/
 logs/
 *.log
 
+# Scripts
+scripts/
+
 # Data
 data/
 !data/.gitkeep
