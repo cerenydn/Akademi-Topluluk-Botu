@@ -171,7 +171,7 @@ class HelpService:
                 logger.error(f"[X] Yardım kanalı oluşturulamadı: {e}")
                 help_channel_id = None
             
-            # 4. Block mesajı oluştur
+            # 4. Block mesajı oluştur (pop-up butonu ile)
             blocks = [
                 {
                     "type": "header",
@@ -195,11 +195,11 @@ class HelpService:
                             "type": "button",
                             "text": {
                                 "type": "plain_text",
-                                "text": "💚 Yardım Et",
+                                "text": "💚 Kanala Katıl",
                                 "emoji": True
                             },
                             "style": "primary",
-                            "action_id": "help_offer",
+                            "action_id": "help_join_channel",
                             "value": help_id
                         },
                         {
@@ -219,7 +219,7 @@ class HelpService:
                     "elements": [
                         {
                             "type": "mrkdwn",
-                            "text": f"🆔 ID: `{help_id[:8]}...` | 📅 {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                            "text": f"🆔 ID: `{help_id[:8]}...` | 📅 {datetime.now().strftime('%d.%m.%Y %H:%M')} | ⏰ 30 dakika sonra kapanacak"
                         }
                     ]
                 }
@@ -244,9 +244,10 @@ class HelpService:
             logger.error(f"[X] HelpService.create_help_request hatası: {e}", exc_info=True)
             raise CemilBotError(f"Yardım isteği oluşturulamadı: {e}")
     
-    async def offer_help(self, help_id: str, helper_id: str) -> Dict[str, Any]:
+    async def join_help_channel(self, help_id: str, user_id: str) -> Dict[str, Any]:
         """
-        Birisi 'Yardım Et' butonuna tıkladığında çağrılır.
+        Birisi 'Kanala Katıl' butonuna tıkladığında çağrılır.
+        Kullanıcıyı yardım kanalına davet eder.
         
         Returns:
             Dict with success status and message
@@ -258,159 +259,59 @@ class HelpService:
                 return {"success": False, "message": "❌ Yardım isteği bulunamadı."}
             
             # 2. Durum kontrolü
-            if help_request["status"] != "open":
-                status_text = {
-                    "in_progress": "Bu yardım isteğine zaten biri yardım ediyor.",
-                    "resolved": "Bu yardım isteği çözüldü.",
-                    "closed": "Bu yardım isteği kapatıldı."
-                }.get(help_request["status"], "Bu yardım isteği artık aktif değil.")
-                return {"success": False, "message": f"❌ {status_text}"}
+            if help_request["status"] == "closed":
+                return {"success": False, "message": "❌ Bu yardım kanalı kapatılmış."}
             
-            # 3. Kendi isteğine yardım edemez
-            if help_request["requester_id"] == helper_id:
-                return {"success": False, "message": "❌ Kendi yardım isteğinize yardım edemezsiniz."}
-            
-            # 4. Yardım isteğini güncelle
-            self.repo.update(help_id, {
-                "status": "in_progress",
-                "helper_id": helper_id
-            })
-            
-            # 5. Kullanıcı bilgilerini al
-            requester_data = self.user_repo.get_by_slack_id(help_request["requester_id"])
-            helper_data = self.user_repo.get_by_slack_id(helper_id)
-            
-            requester_name = requester_data.get('full_name', help_request["requester_id"]) if requester_data else help_request["requester_id"]
-            helper_name = helper_data.get('full_name', helper_id) if helper_data else helper_id
-            
-            logger.info(f"[>] Yardım teklifi | Yardım Eden: {helper_name} ({helper_id}) | İsteyen: {requester_name} ({help_request['requester_id']})")
-            
-            # 6. Yardım kanalına helper'ı davet et
+            # 3. Yardım kanalı kontrolü
             help_channel_id = help_request.get("help_channel_id")
-            if help_channel_id:
-                try:
-                    self.conv.invite_users(help_channel_id, [helper_id])
-                    logger.info(f"[+] Yardım eden kullanıcı kanala davet edildi: {helper_id} | Kanal: {help_channel_id}")
-                    
-                    # Yardım kanalına bilgilendirme mesajı gönder
-                    self.chat.post_message(
-                        channel=help_channel_id,
-                        text=f"✅ <@{helper_id}> yardım etmek istiyor!",
-                        blocks=[{
-                            "type": "section",
-                            "text": {
-                                "type": "mrkdwn",
-                                "text": f"✅ *<@{helper_id}>* yardım etmek istiyor ve kanala katıldı!"
-                            }
-                        }]
-                    )
-                except Exception as e:
-                    logger.warning(f"[!] Yardım eden kullanıcı kanala davet edilemedi: {e}")
+            if not help_channel_id:
+                return {"success": False, "message": "❌ Yardım kanalı bulunamadı."}
             
-            # 7. Yardım eden ve isteyen arasında DM aç
-            dm_channel = self.conv.open_conversation(
-                users=[help_request["requester_id"], helper_id]
-            )
+            # 4. Kullanıcı bilgisini al
+            user_data = self.user_repo.get_by_slack_id(user_id)
+            user_name = user_data.get('full_name', user_id) if user_data else user_id
             
-            # 8. DM'de hoş geldin mesajı gönder
-            dm_blocks = [
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": (
-                            f"👋 *Yardım Bağlantısı Kuruldu!*\n\n"
-                            f"<@{helper_id}> yardım etmek istiyor.\n\n"
-                            f"*Konu:* {help_request['topic']}\n"
-                            f"*Açıklama:* {help_request['description']}\n\n"
-                            f"Artık bu kanal üzerinden iletişim kurabilirsiniz! 💬"
-                        )
-                    }
-                }
-            ]
+            logger.info(f"[>] Kanala katılma isteği | Kullanıcı: {user_name} ({user_id}) | Yardım ID: {help_id}")
             
-            self.chat.post_message(
-                channel=dm_channel["id"],
-                text="Yardım bağlantısı kuruldu!",
-                blocks=dm_blocks
-            )
-            
-            # 9. Yardım isteyen kişiye bilgi ver (DM)
-            requester_dm = self.conv.open_conversation(users=[help_request["requester_id"]])
-            self.chat.post_message(
-                channel=requester_dm["id"],
-                text=f"✅ <@{helper_id}> yardım etmek istiyor!",
-                blocks=[{
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": (
-                            f"✅ *Yardım Teklifi Alındı!*\n\n"
-                            f"<@{helper_id}> yardım etmek istiyor. "
-                            f"DM kanalınız açıldı, oradan devam edebilirsiniz!\n\n"
-                            f"*Konu:* {help_request['topic']}"
-                        )
-                    }
-                }]
-            )
-            
-            # 10. Orijinal mesajı güncelle (butonu devre dışı bırak)
-            updated_blocks = [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": f"✅ Yardım Ediliyor: {help_request['topic']}",
-                        "emoji": True
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"*<@{help_request['requester_id']}>* yardım istiyor:\n\n{help_request['description']}"
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"✅ *<@{helper_id}>* yardım ediyor"
-                    }
-                },
-                {
-                    "type": "context",
-                    "elements": [
-                        {
+            # 5. Kullanıcıyı kanala davet et
+            try:
+                self.conv.invite_users(help_channel_id, [user_id])
+                logger.info(f"[+] Kullanıcı kanala davet edildi: {user_id} | Kanal: {help_channel_id}")
+                
+                # Yardım kanalına bilgilendirme mesajı gönder
+                self.chat.post_message(
+                    channel=help_channel_id,
+                    text=f"✅ <@{user_id}> kanala katıldı!",
+                    blocks=[{
+                        "type": "section",
+                        "text": {
                             "type": "mrkdwn",
-                            "text": f"🆔 ID: `{help_id[:8]}...` | 📅 {datetime.now().strftime('%d.%m.%Y %H:%M')} | ✅ Devam ediyor"
+                            "text": f"✅ *<@{user_id}>* kanala katıldı ve yardım etmek istiyor!"
                         }
-                    ]
+                    }]
+                )
+                
+                return {
+                    "success": True,
+                    "message": f"✅ Kanala katıldınız! <#{help_channel_id}> kanalına gidebilirsiniz.",
+                    "channel_id": help_channel_id
                 }
-            ]
-            
-            # Mesajı güncelle
-            if help_request.get("message_ts") and help_request.get("channel_id"):
-                try:
-                    self.chat.client.chat_update(
-                        channel=help_request["channel_id"],
-                        ts=help_request["message_ts"],
-                        text=f"✅ Yardım Ediliyor: {help_request['topic']}",
-                        blocks=updated_blocks
-                    )
-                    logger.info(f"[+] Yardım isteği mesajı güncellendi | Kanal: {help_request['channel_id']}")
-                except Exception as e:
-                    logger.warning(f"[!] Mesaj güncellenemedi: {e}")
-            
-            return {
-                "success": True,
-                "message": f"✅ Yardım bağlantısı kuruldu! <@{help_request['requester_id']}> ile DM kanalınız açıldı.",
-                "dm_channel_id": dm_channel["id"]
-            }
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "already_in_channel" in error_msg or "already_in team" in error_msg:
+                    logger.info(f"[i] Kullanıcı zaten kanalda: {user_id}")
+                    return {
+                        "success": True,
+                        "message": f"✅ Zaten kanaldasınız! <#{help_channel_id}> kanalına gidebilirsiniz.",
+                        "channel_id": help_channel_id
+                    }
+                else:
+                    logger.warning(f"[!] Kullanıcı kanala davet edilemedi: {e}")
+                    return {"success": False, "message": "❌ Kanala katılamadınız. Lütfen tekrar deneyin."}
             
         except Exception as e:
-            logger.error(f"[X] HelpService.offer_help hatası: {e}", exc_info=True)
-            return {"success": False, "message": "Yardım teklifi verilirken bir hata oluştu."}
+            logger.error(f"[X] HelpService.join_help_channel hatası: {e}", exc_info=True)
+            return {"success": False, "message": "Kanala katılırken bir hata oluştu."}
     
     def _close_help_channel(self, help_id: str, help_channel_id: str):
         """Yardım kanalını kapatır (30 dakika sonra otomatik çağrılır)."""

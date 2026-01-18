@@ -96,9 +96,9 @@ def setup_help_handlers(
         
         asyncio.run(process_help_request())
     
-    @app.action("help_offer")
-    def handle_help_offer(ack, body):
-        """'Yardım Et' butonuna tıklama."""
+    @app.action("help_join_channel")
+    def handle_help_join_channel(ack, body):
+        """'Kanala Katıl' butonuna tıklama (pop-up)."""
         ack()
         user_id = body["user"]["id"]
         channel_id = body["channel"]["id"]
@@ -111,38 +111,38 @@ def setup_help_handlers(
         except Exception:
             user_name = user_id
         
-        logger.info(f"[>] Yardım teklifi | Kullanıcı: {user_name} ({user_id}) | Yardım ID: {help_id}")
+        logger.info(f"[>] Kanala katılma isteği | Kullanıcı: {user_name} ({user_id}) | Yardım ID: {help_id}")
         
         # Async işlemi sync wrapper ile çalıştır
-        async def process_help_offer():
+        async def process_join_channel():
             try:
-                result = await help_service.offer_help(help_id, user_id)
+                result = await help_service.join_help_channel(help_id, user_id)
                 
                 if result["success"]:
-                    # Ephemeral mesaj (sadece tıklayan görür)
+                    # Ephemeral mesaj (pop-up - sadece tıklayan görür)
                     chat_manager.post_ephemeral(
                         channel=channel_id,
                         user=user_id,
                         text=result["message"]
                     )
-                    logger.info(f"[+] Yardım teklifi başarılı | Kullanıcı: {user_name} ({user_id}) | Yardım ID: {help_id}")
+                    logger.info(f"[+] Kanala katılma başarılı | Kullanıcı: {user_name} ({user_id}) | Yardım ID: {help_id}")
                 else:
                     chat_manager.post_ephemeral(
                         channel=channel_id,
                         user=user_id,
                         text=result["message"]
                     )
-                    logger.warning(f"[!] Yardım teklifi başarısız | Kullanıcı: {user_name} ({user_id}) | Sebep: {result.get('message')}")
+                    logger.warning(f"[!] Kanala katılma başarısız | Kullanıcı: {user_name} ({user_id}) | Sebep: {result.get('message')}")
                     
             except Exception as e:
-                logger.error(f"[X] Yardım teklifi hatası: {e}", exc_info=True)
+                logger.error(f"[X] Kanala katılma hatası: {e}", exc_info=True)
                 chat_manager.post_ephemeral(
                     channel=channel_id,
                     user=user_id,
-                    text="Yardım teklifi verilirken bir hata oluştu. Lütfen tekrar deneyin."
+                    text="Kanala katılırken bir hata oluştu. Lütfen tekrar deneyin."
                 )
         
-        asyncio.run(process_help_offer())
+        asyncio.run(process_join_channel())
     
     @app.action("help_details")
     def handle_help_details(ack, body):
