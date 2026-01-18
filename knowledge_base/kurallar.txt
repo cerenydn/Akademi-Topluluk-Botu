@@ -1,5 +1,0 @@
-Cemil Topluluk Kuralları
-1. Herkese saygılı olun.
-2. Mentorluk başvuruları her yıl Ocak ayında başlar.
-3. Kahve eşleşmeleri haftalık yapılır.
-4. Teknik sorular için #tech kanalını kullanın.

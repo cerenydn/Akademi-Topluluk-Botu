@@ -138,3 +138,48 @@ class QuestionRequest(BaseModel):
         if len(v) > 500:
             raise ValueError('Soru en fazla 500 karakter olabilir')
         return v
+
+
+class HelpRequest(BaseModel):
+    """Yardım isteği komutu için input validation."""
+    
+    topic: str = Field(..., description="Yardım isteği konusu")
+    description: str = Field(default="", description="Detaylı açıklama")
+    
+    @field_validator('topic')
+    @classmethod
+    def validate_topic(cls, v: str) -> str:
+        """Konuyu doğrula."""
+        v = v.strip()
+        if not v:
+            raise ValueError('Yardım isteği konusu boş olamaz')
+        if len(v) > 200:
+            raise ValueError('Konu en fazla 200 karakter olabilir')
+        return v
+    
+    @field_validator('description')
+    @classmethod
+    def validate_description(cls, v: str) -> str:
+        """Açıklamayı doğrula."""
+        v = v.strip()
+        if len(v) > 1000:
+            raise ValueError('Açıklama en fazla 1000 karakter olabilir')
+        return v
+    
+    @classmethod
+    def parse_from_text(cls, text: str) -> 'HelpRequest':
+        """
+        /yardim-iste komutundan gelen text'i parse eder.
+        Format: /yardim-iste [konu] [açıklama]
+        """
+        if not text:
+            raise ValueError("Yardım isteği için en azından konu gerekli")
+        
+        parts = text.split(maxsplit=1)
+        if len(parts) == 1:
+            # Sadece konu var
+            return cls(topic=parts[0], description="Detaylı açıklama eklenmedi.")
+        else:
+            # Konu ve açıklama var
+            return cls(topic=parts[0], description=parts[1])
+

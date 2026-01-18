@@ -34,7 +34,8 @@ from src.repositories import (
     MatchRepository,
     PollRepository,
     VoteRepository,
-    FeedbackRepository
+    FeedbackRepository,
+    HelpRepository
 )
 
 # --- Services ---
@@ -42,7 +43,8 @@ from src.services import (
     CoffeeMatchService,
     VotingService,
     FeedbackService,
-    KnowledgeService
+    KnowledgeService,
+    HelpService
 )
 
 # --- Handlers ---
@@ -52,7 +54,8 @@ from src.handlers import (
     setup_feedback_handlers,
     setup_knowledge_handlers,
     setup_profile_handlers,
-    setup_health_handlers
+    setup_health_handlers,
+    setup_help_handlers
 )
 
 # ============================================================================
@@ -100,6 +103,7 @@ match_repo = MatchRepository(db_client)
 poll_repo = PollRepository(db_client)
 vote_repo = VoteRepository(db_client)
 feedback_repo = FeedbackRepository(db_client)
+help_repo = HelpRepository(db_client)
 logger.info("[+] Repository'ler hazır.")
 
 # ============================================================================
@@ -119,6 +123,9 @@ feedback_service = FeedbackService(
 knowledge_service = KnowledgeService(
     vector_client, groq_client
 )
+help_service = HelpService(
+    chat_manager, conv_manager, help_repo, user_repo
+)
 logger.info("[+] Servisler hazır.")
 
 # ============================================================================
@@ -132,6 +139,7 @@ setup_feedback_handlers(app, feedback_service, chat_manager, user_repo)
 setup_knowledge_handlers(app, knowledge_service, chat_manager, user_repo)
 setup_profile_handlers(app, chat_manager, user_repo)
 setup_health_handlers(app, chat_manager, db_client, groq_client, vector_client)
+setup_help_handlers(app, help_service, chat_manager, user_repo)
 logger.info("[+] Handler'lar kaydedildi.")
 
 # ============================================================================
@@ -269,6 +277,7 @@ if __name__ == "__main__":
                     "🗳️ *`/oylama`* - Hızlı anketler başlat (Admin).\n"
                     "📝 *`/geri-bildirim`* - Yönetime anonim mesaj gönder.\n"
                     "🧠 *`/sor`* - Dökümanlara ve bilgi küpüne soru sor.\n"
+                    "🆘 *`/yardim-iste`* - Topluluktan yardım iste.\n"
                     "👤 *`/profilim`* - Kayıtlı bilgilerini görüntüle.\n"
                     "🏥 *`/cemil-health`* - Bot sağlık durumunu kontrol et.\n\n"
                     "Güzel bir gün dilerim! ✨"

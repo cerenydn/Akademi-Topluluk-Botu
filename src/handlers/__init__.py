@@ -8,6 +8,7 @@ from .feedback_handler import setup_feedback_handlers
 from .knowledge_handler import setup_knowledge_handlers
 from .profile_handler import setup_profile_handlers
 from .health_handler import setup_health_handlers
+from .help_handler import setup_help_handlers
 
 __all__ = [
     'setup_coffee_handlers',
@@ -16,4 +17,5 @@ __all__ = [
     'setup_knowledge_handlers',
     'setup_profile_handlers',
     'setup_health_handlers',
+    'setup_help_handlers',
 ]

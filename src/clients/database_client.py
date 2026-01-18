@@ -186,6 +186,23 @@ class DatabaseClient(metaclass=SingletonMeta):
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
+                
+                # Yardım İstekleri Tablosu (Help Requests)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS help_requests (
+                        id TEXT PRIMARY KEY,
+                        requester_id TEXT NOT NULL,
+                        topic TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        status TEXT DEFAULT 'open',
+                        helper_id TEXT,
+                        channel_id TEXT,
+                        message_ts TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        resolved_at TIMESTAMP
+                    )
+                """)
+                
                 conn.commit()
                 logger.debug("[i] Veritabanı tabloları kontrol edildi.")
         except sqlite3.Error as e:
