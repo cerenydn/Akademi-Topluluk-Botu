@@ -165,12 +165,55 @@ def setup_challenge_handlers(
 
     def handle_challenge_status(user_id: str, channel_id: str):
         """Challenge durumunu göster."""
-        # TODO: Implement
-        chat_manager.post_ephemeral(
-            channel=channel_id,
-            user=user_id,
-            text="📊 Challenge durumu özelliği yakında eklenecek."
-        )
+        async def process_status():
+            # Kullanıcının aktif challenge'ını bul
+            from src.repositories import ChallengeParticipantRepository, ChallengeHubRepository
+            from src.clients import DatabaseClient
+            from src.core.settings import get_settings
+            
+            settings = get_settings()
+            db_client = DatabaseClient(db_path=settings.database_path)
+            participant_repo = ChallengeParticipantRepository(db_client)
+            hub_repo = ChallengeHubRepository(db_client)
+            
+            active_challenges = participant_repo.get_user_active_challenges(user_id)
+            
+            if not active_challenges:
+                chat_manager.post_ephemeral(
+                    channel=channel_id,
+                    user=user_id,
+                    text="ℹ️ Aktif challenge'ınız yok. `/challenge start` ile yeni challenge başlatabilirsiniz."
+                )
+                return
+            
+            # İlk aktif challenge'ı göster
+            challenge = active_challenges[0]
+            participants = participant_repo.get_team_members(challenge["id"])
+            participant_count = len(participants)
+            
+            status_text = (
+                f"📊 *Challenge Durumu*\n\n"
+                f"*Tema:* {challenge.get('theme', 'N/A')}\n"
+                f"*Takım:* {participant_count}/{challenge.get('team_size', 'N/A')} kişi\n"
+                f"*Durum:* {challenge.get('status', 'N/A').upper()}\n"
+                f"*Süre:* {challenge.get('deadline_hours', 'N/A')} saat\n"
+            )
+            
+            if challenge.get("challenge_channel_id"):
+                status_text += f"*Kanal:* <#{challenge['challenge_channel_id']}>\n"
+            
+            if challenge.get("status") == "recruiting":
+                status_text += f"\n⏳ Takım dolması bekleniyor..."
+            elif challenge.get("status") == "active":
+                status_text += f"\n🚀 Challenge devam ediyor!"
+            
+            chat_manager.post_ephemeral(
+                channel=channel_id,
+                user=user_id,
+                text=status_text
+            )
+        
+        asyncio.run(process_status())
 
     @app.action("challenge_join_button")
     def handle_challenge_join_button(ack, body):
