@@ -47,6 +47,7 @@ def setup_challenge_handlers(
                     "`/challenge start <takım>` - Yeni challenge başlat (tema ve proje random seçilir)\n"
                     "`/challenge join [challenge_id]` - Challenge'a katıl\n"
                     "`/challenge status` - Challenge durumunu görüntüle\n"
+                    "`/challenge bitir` - Challenge'ı bitir ve değerlendirmeyi başlat (challenge kanalında)\n"
                     "`/challenge set True/False` - Değerlendirme kanalında oy verin\n"
                     "`/challenge set github <link>` - Değerlendirme kanalında GitHub repo linki ekleyin\n\n"
                     "Örnek: `/challenge start 4`\n\n"
@@ -90,6 +91,8 @@ def setup_challenge_handlers(
             handle_join_challenge(subcommand_text, user_id, channel_id)
         elif subcommand == "status":
             handle_challenge_status(user_id, channel_id)
+        elif subcommand == "bitir":
+            handle_challenge_finish(user_id, channel_id)
         elif subcommand == "set":
             handle_challenge_set(subcommand_text, user_id, channel_id)
         else:
@@ -301,6 +304,68 @@ def setup_challenge_handlers(
             )
         
         asyncio.run(process_status())
+
+    def handle_challenge_finish(user_id: str, channel_id: str):
+        """Challenge bitirme komutu - Challenge kanalında çalıştırılmalı."""
+        async def process_finish():
+            # Bu kanal bir challenge kanalı mı?
+            from src.repositories import ChallengeHubRepository, ChallengeEvaluationRepository
+            from src.clients import DatabaseClient
+            from src.core.settings import get_settings
+            
+            settings = get_settings()
+            db_client = DatabaseClient(db_path=settings.database_path)
+            hub_repo = ChallengeHubRepository(db_client)
+            
+            challenge = hub_repo.get_by_channel_id(channel_id)
+            if not challenge:
+                chat_manager.post_ephemeral(
+                    channel=channel_id,
+                    user=user_id,
+                    text="❌ Bu komut sadece challenge kanalında kullanılabilir."
+                )
+                return
+            
+            # Challenge aktif mi?
+            if challenge.get("status") != "active":
+                chat_manager.post_ephemeral(
+                    channel=channel_id,
+                    user=user_id,
+                    text=f"❌ Bu challenge zaten {challenge.get('status', 'bilinmeyen')} durumunda."
+                )
+                return
+            
+            # Zaten değerlendirme başlatılmış mı?
+            eval_repo = ChallengeEvaluationRepository(db_client)
+            existing = eval_repo.get_by_challenge(challenge["id"])
+            if existing:
+                chat_manager.post_ephemeral(
+                    channel=channel_id,
+                    user=user_id,
+                    text="ℹ️ Bu challenge için değerlendirme zaten başlatılmış."
+                )
+                return
+            
+            # Değerlendirme başlat
+            result = await evaluation_service.start_evaluation(
+                challenge["id"],
+                channel_id
+            )
+            
+            if result["success"]:
+                chat_manager.post_ephemeral(
+                    channel=channel_id,
+                    user=user_id,
+                    text="✅ Challenge bitirildi! Değerlendirme başlatıldı."
+                )
+            else:
+                chat_manager.post_ephemeral(
+                    channel=channel_id,
+                    user=user_id,
+                    text=f"❌ Değerlendirme başlatılamadı: {result.get('message', 'Bilinmeyen hata')}"
+                )
+        
+        asyncio.run(process_finish())
 
     def handle_challenge_set(text: str, user_id: str, channel_id: str):
         """Challenge set komutu - True/False/Github link."""
