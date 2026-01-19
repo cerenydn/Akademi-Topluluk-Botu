@@ -793,28 +793,50 @@ class ChallengeEvaluationService:
             challenge_id = evaluation["challenge_hub_id"]
             challenge = self.hub_repo.get(challenge_id)
             if challenge:
-                challenge_channel_id = challenge.get("challenge_channel_id")
-                if challenge_channel_id:
-                    # Sonuç mesajı gönder (kanal arşivlenmiş olabilir, hata kontrolü yap)
-                    try:
-                        result_blocks = [
+                # Challenge'ın status'unu güncelle (değerlendirme tamamlandı)
+                self.hub_repo.update(challenge_id, {
+                    "status": "completed",
+                    "completed_at": datetime.now().isoformat()
+                })
+                logger.info(f"[+] Challenge status güncellendi: {challenge_id} | Status: completed")
+                
+                # Sonuç mesajını hem challenge kanalına hem ana kanala gönder
+                result_blocks = [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": result_message
+                        }
+                    },
+                    {
+                        "type": "context",
+                        "elements": [
                             {
-                                "type": "section",
-                                "text": {
-                                    "type": "mrkdwn",
-                                    "text": result_message
-                                }
-                            },
-                            {
-                                "type": "context",
-                                "elements": [
-                                    {
-                                        "type": "mrkdwn",
-                                        "text": f"📊 Oylar: True={true_votes}, False={false_votes} | GitHub: {'✅ Public' if github_public else '❌ Private/Missing'}"
-                                    }
-                                ]
+                                "type": "mrkdwn",
+                                "text": f"📊 Oylar: True={true_votes}, False={false_votes} | GitHub: {'✅ Public' if github_public else '❌ Private/Missing'}"
                             }
                         ]
+                    }
+                ]
+                
+                # Ana kanala (hub_channel_id) sonuç mesajı gönder
+                hub_channel_id = challenge.get("hub_channel_id")
+                if hub_channel_id:
+                    try:
+                        self.chat.post_message(
+                            channel=hub_channel_id,
+                            text=result_message,
+                            blocks=result_blocks
+                        )
+                        logger.info(f"[+] Değerlendirme sonucu ana kanala gönderildi: {hub_channel_id}")
+                    except Exception as e:
+                        logger.warning(f"[!] Ana kanala sonuç mesajı gönderilemedi: {e}")
+                
+                # Challenge kanalına da gönder (kanal arşivlenmiş olabilir, hata kontrolü yap)
+                challenge_channel_id = challenge.get("challenge_channel_id")
+                if challenge_channel_id:
+                    try:
                         self.chat.post_message(
                             channel=challenge_channel_id,
                             text=result_message,
