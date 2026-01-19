@@ -54,6 +54,64 @@ def setup_challenge_evaluation_handlers(
         
         asyncio.run(process_join())
 
+    @app.action("admin_approve_evaluation")
+    def handle_admin_approve(ack, body):
+        """Admin Onayla butonuna tıklama."""
+        ack()
+        
+        user_id = body["user"]["id"]
+        channel_id = body["channel"]["id"]
+        
+        actions = body.get("actions", [])
+        if not actions:
+            return
+        
+        evaluation_id = actions[0].get("value")
+        
+        async def process_approve():
+            result = await evaluation_service.admin_finalize_evaluation(
+                evaluation_id,
+                user_id,
+                "approved"
+            )
+            
+            chat_manager.post_ephemeral(
+                channel=channel_id,
+                user=user_id,
+                text=result["message"]
+            )
+        
+        asyncio.run(process_approve())
+
+    @app.action("admin_reject_evaluation")
+    def handle_admin_reject(ack, body):
+        """Admin Reddet butonuna tıklama."""
+        ack()
+        
+        user_id = body["user"]["id"]
+        channel_id = body["channel"]["id"]
+        
+        actions = body.get("actions", [])
+        if not actions:
+            return
+        
+        evaluation_id = actions[0].get("value")
+        
+        async def process_reject():
+            result = await evaluation_service.admin_finalize_evaluation(
+                evaluation_id,
+                user_id,
+                "rejected"
+            )
+            
+            chat_manager.post_ephemeral(
+                channel=channel_id,
+                user=user_id,
+                text=result["message"]
+            )
+        
+        asyncio.run(process_reject())
+
     @app.message(re.compile(r"(?i)\b(bitir|tamamla|finish|done)\b"))
     def handle_finish_message(event, say):
         """Challenge kanalında 'bitir' mesajı algılama."""

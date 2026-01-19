@@ -383,13 +383,27 @@ class ChallengeEvaluationService:
                         "message": "❌ Kendi projenize oy veremezsiniz."
                     }
 
-            # Değerlendirici kontrolü
+            # Değerlendirici kontrolü (Admin için istisna)
+            ADMIN_USER_ID = "U02LAJFJJLE"
             evaluator = self.evaluator_repo.get_by_evaluation_and_user(evaluation_id, user_id)
-            if not evaluator:
+            
+            # Admin evaluator listesinde olmasa bile oy verebilir
+            if not evaluator and user_id != ADMIN_USER_ID:
                 return {
                     "success": False,
                     "message": "❌ Bu değerlendirmenin değerlendiricisi değilsiniz."
                 }
+            
+            # Admin için evaluator kaydı yoksa oluştur
+            if user_id == ADMIN_USER_ID and not evaluator:
+                evaluator_id = str(uuid.uuid4())
+                self.evaluator_repo.create({
+                    "id": evaluator_id,
+                    "evaluation_id": evaluation_id,
+                    "user_id": user_id
+                })
+                evaluator = self.evaluator_repo.get(evaluator_id)
+                logger.info(f"[+] Admin evaluator olarak eklendi: {user_id} | Evaluation: {evaluation_id}")
 
             # Zaten oy vermiş mi?
             if evaluator.get("vote"):
@@ -426,30 +440,60 @@ class ChallengeEvaluationService:
                 eval_channel_id = evaluation.get("evaluation_channel_id")
                 
                 if github_url and github_public == 1:
-                    # Repo var ve public → Hemen sonlandır
-                    logger.info(f"[+] Tüm oylar alındı ve repo public → Değerlendirme sonlandırılıyor | Evaluation: {evaluation_id}")
+                    # Repo var ve public → Admin onayı iste
+                    logger.info(f"[+] Tüm oylar alındı ve repo public → Admin onayı bekleniyor | Evaluation: {evaluation_id}")
                     
-                    # Kanala bilgi mesajı gönder
+                    # Kanala admin onay butonu gönder
                     if eval_channel_id:
                         try:
                             self.chat.post_message(
                                 channel=eval_channel_id,
-                                text="✅ Tüm değerlendiriciler oy verdi ve GitHub repo public! Değerlendirme sonuçlanıyor...",
+                                text="✅ Tüm değerlendiriciler oy verdi ve GitHub repo public! Admin onayı bekleniyor...",
                                 blocks=[
                                     {
                                         "type": "section",
                                         "text": {
                                             "type": "mrkdwn",
-                                            "text": "✅ *Tüm değerlendiriciler oy verdi ve GitHub repo public!*\n\nDeğerlendirme sonuçlanıyor..."
+                                            "text": (
+                                                "✅ *Tüm değerlendiriciler oy verdi ve GitHub repo public!*\n\n"
+                                                f"📊 Oylar: True={votes['true']}, False={votes['false']}\n"
+                                                f"🔗 GitHub: {github_url}\n\n"
+                                                "👤 **Admin onayı bekleniyor...**"
+                                            )
                                         }
+                                    },
+                                    {
+                                        "type": "actions",
+                                        "elements": [
+                                            {
+                                                "type": "button",
+                                                "text": {
+                                                    "type": "plain_text",
+                                                    "text": "✅ Onayla ve Bitir",
+                                                    "emoji": True
+                                                },
+                                                "style": "primary",
+                                                "action_id": "admin_approve_evaluation",
+                                                "value": evaluation_id
+                                            },
+                                            {
+                                                "type": "button",
+                                                "text": {
+                                                    "type": "plain_text",
+                                                    "text": "❌ Reddet ve Bitir",
+                                                    "emoji": True
+                                                },
+                                                "style": "danger",
+                                                "action_id": "admin_reject_evaluation",
+                                                "value": evaluation_id
+                                            }
+                                        ]
                                     }
                                 ]
                             )
+                            logger.info(f"[i] Admin onay butonu gönderildi | Evaluation: {evaluation_id}")
                         except Exception as e:
-                            logger.warning(f"[!] Sonlandırma mesajı gönderilemedi: {e}")
-                    
-                    # Hemen finalize et
-                    await self.finalize_evaluation(evaluation_id)
+                            logger.warning(f"[!] Admin onay butonu gönderilemedi: {e}")
                 else:
                     # Repo yok veya private → Bilgilendirme mesajı gönder
                     if eval_channel_id:
@@ -529,40 +573,70 @@ class ChallengeEvaluationService:
                 "github_repo_public": 1 if is_public else 0
             })
 
-            # Eğer repo public ve 3 kişi oy verdiyse hemen sonlandır
+            # Eğer repo public ve 3 kişi oy verdiyse admin onayı iste
             if is_public:
                 votes = self.evaluator_repo.get_votes(evaluation_id)
                 total_votes = votes["true"] + votes["false"]
                 
                 if total_votes >= 3:
-                    logger.info(f"[+] GitHub repo public ve 3 oy var → Değerlendirme sonlandırılıyor | Evaluation: {evaluation_id}")
+                    logger.info(f"[+] GitHub repo public ve 3 oy var → Admin onayı bekleniyor | Evaluation: {evaluation_id}")
                     
-                    # Kanala bilgi mesajı gönder
+                    # Kanala admin onay butonu gönder
                     eval_channel_id = evaluation.get("evaluation_channel_id")
                     if eval_channel_id:
                         try:
                             self.chat.post_message(
                                 channel=eval_channel_id,
-                                text="✅ GitHub repo public ve tüm oylar alındı! Değerlendirme sonuçlanıyor...",
+                                text="✅ GitHub repo public ve tüm oylar alındı! Admin onayı bekleniyor...",
                                 blocks=[
                                     {
                                         "type": "section",
                                         "text": {
                                             "type": "mrkdwn",
-                                            "text": "✅ *GitHub repo public doğrulandı ve tüm oylar alındı!*\n\nDeğerlendirme sonuçlanıyor..."
+                                            "text": (
+                                                "✅ *GitHub repo public doğrulandı ve tüm oylar alındı!*\n\n"
+                                                f"📊 Oylar: True={votes['true']}, False={votes['false']}\n"
+                                                f"🔗 GitHub: {github_url}\n\n"
+                                                "👤 **Admin onayı bekleniyor...**"
+                                            )
                                         }
+                                    },
+                                    {
+                                        "type": "actions",
+                                        "elements": [
+                                            {
+                                                "type": "button",
+                                                "text": {
+                                                    "type": "plain_text",
+                                                    "text": "✅ Onayla ve Bitir",
+                                                    "emoji": True
+                                                },
+                                                "style": "primary",
+                                                "action_id": "admin_approve_evaluation",
+                                                "value": evaluation_id
+                                            },
+                                            {
+                                                "type": "button",
+                                                "text": {
+                                                    "type": "plain_text",
+                                                    "text": "❌ Reddet ve Bitir",
+                                                    "emoji": True
+                                                },
+                                                "style": "danger",
+                                                "action_id": "admin_reject_evaluation",
+                                                "value": evaluation_id
+                                            }
+                                        ]
                                     }
                                 ]
                             )
+                            logger.info(f"[i] Admin onay butonu gönderildi | Evaluation: {evaluation_id}")
                         except Exception as e:
-                            logger.warning(f"[!] Sonlandırma mesajı gönderilemedi: {e}")
-                    
-                    # Hemen finalize et
-                    await self.finalize_evaluation(evaluation_id)
+                            logger.warning(f"[!] Admin onay butonu gönderilemedi: {e}")
                     
                     return {
                         "success": True,
-                        "message": f"✅ GitHub repo linki kaydedildi, public doğrulandı ve değerlendirme tamamlandı: {github_url}"
+                        "message": f"✅ GitHub repo linki kaydedildi ve public doğrulandı. Admin onayı bekleniyor: {github_url}"
                     }
                 else:
                     return {
@@ -615,7 +689,66 @@ class ChallengeEvaluationService:
         pattern = r'^https?://github\.com/[^/]+/[^/]+/?$'
         return bool(re.match(pattern, url))
 
-    async def finalize_evaluation(self, evaluation_id: str):
+    async def admin_finalize_evaluation(
+        self,
+        evaluation_id: str,
+        admin_user_id: str,
+        approval: str  # "approved" veya "rejected"
+    ) -> Dict[str, Any]:
+        """
+        Admin onayı ile değerlendirmeyi sonlandırır.
+        Sadece admin (U02LAJFJJLE) çağırabilir.
+        """
+        try:
+            ADMIN_USER_ID = "U02LAJFJJLE"
+            if admin_user_id != ADMIN_USER_ID:
+                return {
+                    "success": False,
+                    "message": "❌ Sadece admin bu işlemi yapabilir."
+                }
+            
+            evaluation = self.evaluation_repo.get(evaluation_id)
+            if not evaluation:
+                return {
+                    "success": False,
+                    "message": "❌ Değerlendirme bulunamadı."
+                }
+            
+            if evaluation.get("status") == "completed":
+                return {
+                    "success": False,
+                    "message": "⚠️ Bu değerlendirme zaten tamamlanmış."
+                }
+            
+            # Admin onayını kaydet
+            self.evaluation_repo.update(evaluation_id, {
+                "admin_approval": approval
+            })
+            
+            logger.info(f"[+] Admin onayı: {approval} | Evaluation: {evaluation_id} | Admin: {admin_user_id}")
+            
+            # Değerlendirmeyi finalize et
+            await self.finalize_evaluation(evaluation_id, admin_approval=approval)
+            
+            if approval == "approved":
+                return {
+                    "success": True,
+                    "message": "✅ Değerlendirme admin tarafından onaylandı ve tamamlandı."
+                }
+            else:
+                return {
+                    "success": True,
+                    "message": "❌ Değerlendirme admin tarafından reddedildi ve tamamlandı."
+                }
+            
+        except Exception as e:
+            logger.error(f"[X] Admin finalize hatası: {e}", exc_info=True)
+            return {
+                "success": False,
+                "message": "❌ Admin onayı kaydedilirken bir hata oluştu."
+            }
+
+    async def finalize_evaluation(self, evaluation_id: str, admin_approval: str = None):
         """48 saat sonunda değerlendirmeyi finalize eder."""
         try:
             evaluation = self.evaluation_repo.get(evaluation_id)
@@ -636,7 +769,11 @@ class ChallengeEvaluationService:
             github_public = evaluation.get("github_repo_public", 0) == 1
             github_url = evaluation.get("github_repo_url")
 
-            if true_votes > false_votes and github_public and github_url:
+            # Admin reddetmişse otomatik olarak başarısız
+            if admin_approval == "rejected":
+                final_result = "failed"
+                result_message = "❌ *Challenge Başarısız*\n\n*Nedenler:*\n• Admin tarafından reddedildi"
+            elif true_votes > false_votes and github_public and github_url:
                 final_result = "success"
                 result_message = "🎉 *Challenge Başarılı!*"
             else:

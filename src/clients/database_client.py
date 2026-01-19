@@ -398,12 +398,21 @@ class DatabaseClient(metaclass=SingletonMeta):
                         true_votes INTEGER DEFAULT 0,
                         false_votes INTEGER DEFAULT 0,
                         final_result TEXT,
+                        admin_approval TEXT DEFAULT 'pending',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         deadline_at TIMESTAMP,
                         completed_at TIMESTAMP,
                         FOREIGN KEY (challenge_hub_id) REFERENCES challenge_hubs(id) ON DELETE CASCADE
                     )
                 """)
+                
+                # Migration: admin_approval kolonu yoksa ekle
+                cursor.execute("PRAGMA table_info(challenge_evaluations)")
+                columns = [column[1] for column in cursor.fetchall()]
+                if 'admin_approval' not in columns:
+                    logger.info("[i] challenge_evaluations tablosuna admin_approval kolonu ekleniyor...")
+                    cursor.execute("ALTER TABLE challenge_evaluations ADD COLUMN admin_approval TEXT DEFAULT 'pending'")
+                    logger.info("[+] challenge_evaluations.admin_approval kolonu eklendi.")
                 
                 # Challenge Evaluators (Değerlendiriciler)
                 cursor.execute("""
