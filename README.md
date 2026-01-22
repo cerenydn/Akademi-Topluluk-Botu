@@ -6,7 +6,7 @@ Cemil, Slack çalışma alanları için geliştirilmiş; yapay zeka destekli, mo
 ![Slack Bolt](https://img.shields.io/badge/Slack-Bolt-green)
 ![Groq AI](https://img.shields.io/badge/AI-Groq-orange)
 
----
+----
 
 ## ✨ Özellikler
 
