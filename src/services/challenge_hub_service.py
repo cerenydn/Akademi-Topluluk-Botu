@@ -168,7 +168,10 @@ class ChallengeHubService:
             # NOT: Creator'ı challenge_participants tablosuna ekleme,
             # zaten challenge_hubs.creator_id'de tutuluyor.
             # Böylece team_size sadece katılımcıları sayar (creator hariç).
-            target_channel = channel_id or self._get_hub_channel()
+            # Challenge duyuru mesajı herkese açık kanala (startup_channel) gönderilmeli
+            from src.core.settings import get_settings
+            settings = get_settings()
+            target_channel = settings.startup_channel or self._get_hub_channel()
             if target_channel:
                 blocks = [
                     {
@@ -1184,9 +1187,8 @@ class ChallengeHubService:
         """#challenge-hub kanalını bulur."""
         from src.core.settings import get_settings
         settings = get_settings()
-        # Settings'den al veya varsayılan olarak None döndür
-        # Kullanıcı #challenge-hub kanalını manuel oluşturmalı
-        return None
+        # Settings'den startup_channel'ı kullan (eğer ayarlanmışsa)
+        return settings.startup_channel
 
     def check_and_remove_unauthorized_user(self, channel_id: str, user_id: str) -> Dict[str, Any]:
         """
