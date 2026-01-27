@@ -61,8 +61,20 @@ class ChallengeEvaluationService:
             hub_channel_id = challenge.get("hub_channel_id")
             if not hub_channel_id:
                 # Duyuru kanalı yoksa yapacak bir şey yok
-                logger.debug(f"[i] Canvas güncelleme: hub_channel_id yok, atlanıyor | Challenge: {challenge_id}")
+                logger.warning(
+                    f"[!] Canvas güncelleme: hub_channel_id YOK, canvas oluşturulamıyor | "
+                    f"Challenge: {challenge_id[:8]}... | "
+                    f"Tema: {challenge.get('theme', 'N/A')} | "
+                    f"Status: {challenge.get('status', 'N/A')}"
+                )
                 return
+            
+            logger.info(
+                f"[>] Canvas güncelleme başlıyor | "
+                f"Challenge: {challenge_id[:8]}... | "
+                f"Kanal: {hub_channel_id} | "
+                f"Mevcut summary_ts: {challenge.get('summary_message_ts', 'YOK')}"
+            )
 
             # İlgili değerlendirme (varsa)
             evaluation = self.evaluation_repo.get_by_challenge(challenge_id)
@@ -187,7 +199,13 @@ class ChallengeEvaluationService:
                         text=header_text,
                         blocks=blocks,
                     )
-                    logger.info(f"[+] Challenge canvas/özet mesajı güncellendi | Challenge: {challenge_id}")
+                    logger.info(
+                        f"[+] Challenge canvas/özet mesajı GÜNCELLENDİ | "
+                        f"Challenge: {challenge_id[:8]}... | "
+                        f"Kanal: {hub_channel_id} | "
+                        f"TS: {summary_ts} | "
+                        f"Durum: {status_label}"
+                    )
                     return
                 except Exception as e:
                     logger.warning(f"[!] Canvas mesajı güncellenemedi, yeniden oluşturulacak: {e}")
@@ -208,7 +226,20 @@ class ChallengeEvaluationService:
                             "summary_message_channel_id": hub_channel_id,
                         },
                     )
-                logger.info(f"[+] Challenge için yeni canvas/özet mesajı oluşturuldu | Challenge: {challenge_id}")
+                    logger.info(
+                        f"[+] Challenge için YENİ canvas/özet mesajı OLUŞTURULDU | "
+                        f"Challenge: {challenge_id[:8]}... | "
+                        f"Kanal: {hub_channel_id} | "
+                        f"TS: {ts} | "
+                        f"Başlık: {header_text[:50]}..."
+                    )
+                else:
+                    logger.error(
+                        f"[X] Canvas mesajı gönderildi ama TS alınamadı! | "
+                        f"Challenge: {challenge_id[:8]}... | "
+                        f"Kanal: {hub_channel_id} | "
+                        f"Response: {str(resp)[:200]}"
+                    )
             except Exception as e:
                 logger.warning(f"[!] Canvas mesajı oluşturulamadı: {e}")
         except Exception as e:

@@ -231,6 +231,12 @@ class ChallengeHubService:
                 
                 # Hub channel ID'yi kaydet
                 self.hub_repo.update(challenge_id, {"hub_channel_id": target_channel})
+                logger.info(
+                    f"[+] Hub channel ID kaydedildi | "
+                    f"Challenge: {challenge_id[:8]}... | "
+                    f"Kanal: {target_channel} | "
+                    f"(Canvas bu kanalda açılacak)"
+                )
             else:
                 logger.error(f"[X] Challenge duyuru mesajı gönderilemedi: startup_channel ve channel_id ayarlanmamış | Challenge: {challenge_id}")
 
