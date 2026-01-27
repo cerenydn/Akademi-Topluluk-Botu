@@ -191,11 +191,10 @@ class ChallengeEvaluationService:
             if self.canvas:
                 try:
                     if canvas_id:
-                        # Mevcut canvas'ı güncelle
+                        # Mevcut canvas'ı güncelle - tüm içeriği değiştir
                         try:
                             changes = [{
                                 "operation": "replace",
-                                "section_id": "table_section",
                                 "document_content": {
                                     "type": "markdown",
                                     "markdown": canvas_content
@@ -216,27 +215,16 @@ class ChallengeEvaluationService:
                     # Yeni canvas oluştur
                     if not canvas_id:
                         try:
-                            # Kanal bazlı canvas oluştur
-                            resp = self.conv.create_channel_canvas(hub_channel_id)
+                            # Kanal bazlı canvas oluştur - içerik ile birlikte
+                            document_content = {
+                                "type": "markdown",
+                                "markdown": canvas_content
+                            }
+                            resp = self.conv.create_channel_canvas(hub_channel_id, document_content)
                             canvas_id = resp.get("canvas_id")
                             
                             if canvas_id:
-                                # Canvas'a içerik ekle
-                                changes = [{
-                                    "operation": "insert_at_start",
-                                    "document_content": {
-                                        "type": "markdown",
-                                        "markdown": canvas_content
-                                    }
-                                }]
-                                self.canvas.edit_canvas(canvas_id, changes)
-                                
-                                # Canvas'ı kanala erişilebilir yap
-                                self.canvas.set_access(
-                                    canvas_id=canvas_id,
-                                    access_level="read",
-                                    channel_ids=[hub_channel_id]
-                                )
+                                logger.info(f"[DEBUG] Canvas oluşturuldu | Canvas ID: {canvas_id}")
                                 
                                 # Tüm aktif challenge'lara canvas_id'yi kaydet
                                 for ch in all_active_challenges:

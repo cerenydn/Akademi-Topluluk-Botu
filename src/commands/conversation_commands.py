@@ -488,10 +488,27 @@ class ConversationManager:
             return False
 
     # Canvas (Kanal Bazlı)
-    def create_channel_canvas(self, channel_id: str) -> Dict[str, Any]:
-        """Kanal için canvas oluşturur (conversations.canvases.create)."""
+    def create_channel_canvas(self, channel_id: str, document_content: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Kanal için canvas oluşturur (conversations.canvases.create).
+        
+        Args:
+            channel_id: Kanal ID
+            document_content: Canvas içeriği (format: {"type": "markdown", "markdown": "content"})
+                             Boşsa empty canvas oluşturulur
+        """
         try:
-            response = self.client.conversations_canvases_create(channel_id=channel_id)
+            # document_content boşsa default markdown ile canvas oluştur
+            if not document_content:
+                document_content = {
+                    "type": "markdown",
+                    "markdown": "# Canvas\n\nBoş canvas oluşturuldu."
+                }
+            
+            response = self.client.conversations_canvases_create(
+                channel_id=channel_id,
+                document_content=document_content
+            )
             if response["ok"]:
                 logger.info(f"[+] Kanal canvas'ı oluşturuldu (Kanal: {channel_id})")
                 return response
