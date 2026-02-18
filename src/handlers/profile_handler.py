@@ -66,8 +66,10 @@ def setup_profile_handlers(
             db_client = DatabaseClient(db_path=settings.database_path)
             evaluator_repo = ChallengeEvaluatorRepository(db_client)
             
+            # Kullanıcıların katıldığı toplam challenge sayısını hesaplar
             completed_challenges = user_data.get("completed_challenges", 0)
-
+            
+            # Kullanıcıların jüri olarak bulunduğu challenge sayısını hesaplar.
             jury_count = len(
                 evaluator_repo.list(filters={"user_id": slack_id})
         )
