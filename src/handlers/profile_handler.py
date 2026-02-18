@@ -19,6 +19,11 @@ def setup_profile_handlers(
     def handle_profile_command(ack, body):
         """Kullanıcının kendi kayıtlı bilgilerini gösterir."""
         ack()
+        
+        from src.repositories import ChallengeEvaluatorRepository
+        from src.clients import DatabaseClient
+        from src.core.settings import get_settings
+        
         user_id = body["user_id"]
         channel_id = body["channel_id"]
         
@@ -56,12 +61,25 @@ def setup_profile_handlers(
             slack_id = user_data.get('slack_id', user_id)
             birthday = user_data.get('birthday', 'Yok')
             
+            
+            settings = get_settings()
+            db_client = DatabaseClient(db_path=settings.database_path)
+            evaluator_repo = ChallengeEvaluatorRepository(db_client)
+            
+            completed_challenges = user_data.get("completed_challenges", 0)
+
+            jury_count = len(
+                evaluator_repo.list(filters={"user_id": slack_id})
+        )
+            
             text = (
                 f"👤 *KİMLİK KARTI*\n"
                 f"------------------\n"
                 f"*Ad Soyad:* {display_name}\n"
                 f"*Slack ID:* `{slack_id}`\n"
                 f"*Cohort:* {user_data.get('cohort', 'Belirtilmemiş')}\n"
+                f"*Katıldığı Challenge Sayısı:* {completed_challenges}\n"
+                f"*Jüri Olduğu Challenge Sayısı:* {jury_count}\n"
                 f"*Doğum Tarihi:* {birthday}\n"
                 f"------------------"
             )
