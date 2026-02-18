@@ -6,7 +6,9 @@ from slack_bolt import App
 from src.core.logger import logger
 from src.commands import ChatManager
 from src.repositories import UserRepository
-
+from src.repositories import ChallengeEvaluatorRepository
+from src.clients import DatabaseClient
+from src.core.settings import get_settings
 
 def setup_profile_handlers(
     app: App,
@@ -19,11 +21,6 @@ def setup_profile_handlers(
     def handle_profile_command(ack, body):
         """Kullanıcının kendi kayıtlı bilgilerini gösterir."""
         ack()
-        
-        from src.repositories import ChallengeEvaluatorRepository
-        from src.clients import DatabaseClient
-        from src.core.settings import get_settings
-        
         user_id = body["user_id"]
         channel_id = body["channel_id"]
         
